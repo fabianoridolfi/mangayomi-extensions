@@ -8,7 +8,7 @@ Source _stonescapeSource = Source(
   isNsfw: false,
   typeSource: "madara",
   iconUrl:
-      "https://raw.githubusercontent.com/m2k3a/mangayomi-extensions/main/dart/manga/multisrc/madara/src/en/stonescape/icon.png",
+      "$rawRepoUrl/$branchName/dart/manga/multisrc/madara/src/en/stonescape/icon.png",
   dateFormat: "MMMM dd, yyyy",
   dateFormatLocale: "en",
 );
