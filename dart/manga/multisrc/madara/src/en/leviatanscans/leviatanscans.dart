@@ -9,7 +9,7 @@ Source _leviatanscansSource = Source(
 
   typeSource: "madara",
   iconUrl:
-      "https://raw.githubusercontent.com/m2k3a/mangayomi-extensions/$branchName/dart/manga/multisrc/madara/src/en/leviatanscans/icon.png",
+      "$rawRepoUrl/$branchName/dart/manga/multisrc/madara/src/en/leviatanscans/icon.png",
   dateFormat: "MMM dd, yyyy",
   dateFormatLocale: "en_us",
 );
