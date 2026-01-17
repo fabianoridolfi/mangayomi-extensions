@@ -116,6 +116,8 @@ class Source {
   }
 }
 
-const branchName = "main";
+const rawRepoUrl =
+    "https://raw.githubusercontent.com/fabianoridolfi/mangayomi-extensions";
+const branchName = "develop";
 
 enum ItemType { manga, anime, novel }

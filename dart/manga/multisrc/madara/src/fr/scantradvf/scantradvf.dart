@@ -9,7 +9,7 @@ Source _scantradvfSource = Source(
 
   typeSource: "madara",
   iconUrl:
-      "https://raw.githubusercontent.com/m2k3a/mangayomi-extensions/$branchName/dart/manga/multisrc/madara/src/fr/scantradvf/icon.png",
+      "$rawRepoUrl/$branchName/dart/manga/multisrc/madara/src/fr/scantradvf/icon.png",
   dateFormat: "d MMMM yyyy",
   dateFormatLocale: "fr",
 );
