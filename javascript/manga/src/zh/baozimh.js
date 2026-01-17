@@ -3,7 +3,7 @@ const mangayomiSources = [{
   "lang": "zh",
   "baseUrl": "https://www.baozimh.com",
   "apiUrl": "",
-  "iconUrl": "https://raw.githubusercontent.com/m2k3a/mangayomi-extensions/main/javascript/icon/zh.baozimh.png",
+  "iconUrl": "https://raw.githubusercontent.com/fabianoridolfi/mangayomi-extensions/develop/main/javascript/icon/zh.baozimh.png",
   "typeSource": "single",
   "itemType": 0,
   "isNsfw": false,
