@@ -7,7 +7,7 @@ const mangayomiSources = [{
     "typeSource": "single",
     "isManga": false,
     "itemType": 1,
-    "version": "0.0.1",
+    "version": "0.0.2",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": ""
@@ -46,7 +46,7 @@ class DefaultExtension extends MProvider {
 
         const list = [];
         for (const anime of animes) {
-            const name = anime['title_it'] ?? anime['title_eng'] ?? anime['title'];
+            const name = anime['title_eng'] ?? anime['title_it'] ?? anime['title'];
             const imageUrl = this.localImageUrl(anime['imageurl']);
             const link = `/anime/${anime['id']}-${anime['slug']}`;
             list.push({ name, imageUrl, link });
@@ -64,7 +64,7 @@ class DefaultExtension extends MProvider {
         for (const item of itemList) {
             const anime = item['anime'];
 
-            const name = anime['title_it'] ?? anime['title_eng'] ?? anime['title'];
+            const name = anime['title_eng'] ?? anime['title_it'] ?? anime['title'];
             const imageUrl = this.localImageUrl(anime['imageurl']);
             const link = `/anime/${anime['id']}-${anime['slug']}`;
             list.push({ name, imageUrl, link });
@@ -136,7 +136,7 @@ class DefaultExtension extends MProvider {
 
         const list = [];
         for (const anime of animes) {
-            const name = anime['title_it'] ?? anime['title_eng'] ?? anime['title'];
+            const name = anime['title_eng'] ?? anime['title_it'] ?? anime['title'];
             const imageUrl = this.localImageUrl(anime['imageurl']);
             const link = `/anime/${anime['id']}-${anime['slug']}`;
             list.push({ name, imageUrl, link });
