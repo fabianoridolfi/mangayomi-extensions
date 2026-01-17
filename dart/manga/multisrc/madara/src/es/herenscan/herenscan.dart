@@ -8,7 +8,7 @@ Source _herenscanSource = Source(
   isNsfw: false,
   typeSource: "madara",
   iconUrl:
-      "https://raw.githubusercontent.com/m2k3a/mangayomi-extensions/main/dart/manga/multisrc/madara/src/es/herenscan/icon.png",
+      "$rawRepoUrl/$branchName/dart/manga/multisrc/madara/src/es/herenscan/icon.png",
   dateFormat: "d 'de' MMM 'de' yyy",
   dateFormatLocale: "es",
 );
