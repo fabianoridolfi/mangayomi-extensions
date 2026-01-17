@@ -89,7 +89,7 @@ import 'src/tr/zenithscans/zenithscans.dart';
 
 const mangareaderVersion = "0.1.66";
 const mangareaderSourceCodeUrl =
-    "https://raw.githubusercontent.com/m2k3a/mangayomi-extensions/$branchName/dart/manga/multisrc/mangareader/mangareader.dart";
+    "$rawRepoUrl/$branchName/dart/manga/multisrc/mangareader/mangareader.dart";
 
 List<Source> get mangareaderSourcesList => _mangareaderSourcesList;
 List<Source> _mangareaderSourcesList =
