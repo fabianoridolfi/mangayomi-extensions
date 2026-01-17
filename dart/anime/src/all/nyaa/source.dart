@@ -2,10 +2,9 @@ import '../../../../../model/source.dart';
 
 const _nyaaVersion = "0.0.4";
 const _nyaaSourceCodeUrl =
-    "https://raw.githubusercontent.com/m2k3a/mangayomi-extensions/$branchName/dart/anime/src/all/nyaa/nyaa.dart";
+    "$rawRepoUrl/$branchName/dart/anime/src/all/nyaa/nyaa.dart";
 
-String _iconUrl =
-    "https://raw.githubusercontent.com/m2k3a/mangayomi-extensions/$branchName/dart/anime/src/all/nyaa/icon.png";
+String _iconUrl = "$rawRepoUrl/$branchName/dart/anime/src/all/nyaa/icon.png";
 
 Source get nyaaSource => _nyaaSource;
 Source _nyaaSource = Source(
