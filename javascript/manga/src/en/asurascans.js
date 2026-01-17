@@ -5,8 +5,7 @@ const mangayomiSources = [
 		"lang": "en",
 		"baseUrl": "https://asurascans.com",
 		"apiUrl": "https://api.asurascans.com",
-		"iconUrl":
-			"https://raw.githubusercontent.com/m2k3a/mangayomi-extensions/main/javascript/icon/en.asurascans.png",
+		"iconUrl": "https://raw.githubusercontent.com/fabianoridolfi/mangayomi-extensions/develop/main/javascript/icon/en.asurascans.png",
 		"typeSource": "single",
 		"itemType": 0,
 		"version": "0.2.14",
