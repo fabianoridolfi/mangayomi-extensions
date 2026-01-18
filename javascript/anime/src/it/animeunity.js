@@ -7,7 +7,7 @@ const mangayomiSources = [{
     "typeSource": "single",
     "isManga": false,
     "itemType": 1,
-    "version": "0.0.2",
+    "version": "0.0.3",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "anime/src/it/animeunity.js"
@@ -84,6 +84,7 @@ class DefaultExtension extends MProvider {
         let status = false;
         let type = false;
         let season = false;
+        let dubbed = false;
         let order = false;
 
         for (const filter of filters) {
@@ -106,12 +107,19 @@ class DefaultExtension extends MProvider {
                     else if (filter.type == "SeasonList") {
                         season = value;
                     }
-                    else if (filter.type == "OrderList") {
+                    else if(filter.type == "DubList") {
+                        dubbed = value;
+                    }
+                    else if(filter.type == "OrderList") {
                         order = value;
                     }
                 }
             }
         }
+
+        let totalAnimes = 0;
+        let retrirevedAnimes = 0;
+        const offset = (Math.max(1, Number(page)) - 1) * 30;
 
         const headers = {
             "Content-Type": "application/json", 
@@ -119,30 +127,48 @@ class DefaultExtension extends MProvider {
             "X-Requested-With": "XMLHttpRequest"
         };
 
-        const res = await this.client.post(`${this.source.baseUrl}/archivio/get-animes`, headers,
-            {
-                "title": query,
-                "type":type,
-                "year":year,
-                "order":order,
-                "status":status,
-                "genres":genres,
-                "offset":0,
-                "dubbed":false,
-                "season":season
-            });
-
-        const animes = JSON.parse(res.body)['records'];
+        const body = {
+            "title": query,
+            "type":type,
+            "year":year,
+            "order": (order == "Anno") ? "Lista A-Z" : order,
+            "status":status,
+            "genres":genres,
+            "offset":(order == "Anno") ? retrirevedAnimes : offset,
+            "dubbed":dubbed == "OnlyIta",
+            "season":season
+        };
 
         const list = [];
-        for (const anime of animes) {
-            const name = anime['title_eng'] ?? anime['title_it'] ?? anime['title'];
-            const imageUrl = this.localImageUrl(anime['imageurl']);
-            const link = `/anime/${anime['id']}-${anime['slug']}`;
-            list.push({ name, imageUrl, link });
+        do {
+            const res = await this.client.post(`${this.source.baseUrl}/archivio/get-animes`, headers, body);
+
+            const animes = JSON.parse(res.body)['records'];
+            totalAnimes = JSON.parse(res.body)['tot'];
+            retrirevedAnimes += animes.length
+
+            for (const anime of animes) {
+                const name = anime['title_eng'] ?? anime['title_it'] ?? anime['title'];
+                const year = anime['date'];
+                const imageUrl = this.localImageUrl(anime['imageurl']);
+                const link = `/anime/${anime['id']}-${anime['slug']}`;
+
+                if(dubbed != "NoIta" || !name.includes(" (ITA)")) {
+                    list.push({ name, year, imageUrl, link });
+                }
+            }
+            
+            // for next loop
+            body.offset = retrirevedAnimes;
+        } while(order == "Anno" && retrirevedAnimes < totalAnimes && list.length < 120 );
+
+        let hasNextPage = offset + retrirevedAnimes < totalAnimes;
+        if(order == "Anno") { 
+            list.sort((a, b) => Number(a.year) - Number(b.year));
+            hasNextPage = false
         }
 
-        return { "list": list, "hasNextPage": false };
+        return { "list": list, "hasNextPage": hasNextPage };
     }
 
     async getDetail(url) {
@@ -209,6 +235,13 @@ class DefaultExtension extends MProvider {
         const yearsRange = (min, max) => Array.from({ length: max - min + 1 }, (_, i) => max - i).map(x => [x, x]);
         return [
             {
+                type_name: "HeaderFilter",
+                type: "info",
+                name: "INFO: l'ordinamento per anno è gestito lato client. " +
+                      "La funzionalità è limitata a un set ridotto di dati per prevenire problemi nell'usabilità dell'applicazione.",                      
+                state: 0
+            },
+            {
                 type_name: "GroupFilter",
                 type: "GenresFilter",
                 name: "Generi",
@@ -267,7 +300,7 @@ class DefaultExtension extends MProvider {
                 name: "Anno di Uscita",
                 state: 0,
                 values: [
-                    ["any", ""], 
+                    ["Any", ""], 
                     ...yearsRange(1969, 2027)
                 ].map(x => ({ type_name: 'SelectOption', name: `${x[0]}`, value: `${x[1]}` }))
             },
@@ -313,6 +346,17 @@ class DefaultExtension extends MProvider {
                 ].map(x => ({type_name: 'SelectOption', name: x[0], value: x[1] }))
             },
             {
+                type_name: "SelectFilter",
+                type: "DubList",
+                name: "Doppiaggio",
+                state: 1,
+                values: [
+                    ["Any", ""],
+                    ["Escludi doppiati", "NoIta"],
+                    ["Solo doppiati", "OnlyIta"]
+                ].map(x => ({type_name: 'SelectOption', name: x[0], value: x[1] }))
+            },
+            {
                 type: "separator",
                 type_name: "SeparatorFilter",
             },
@@ -325,6 +369,7 @@ class DefaultExtension extends MProvider {
                     ["Any", ""],
                     ["Lista A-Z", "Lista A-Z"],
                     ["Lista Z-A", "Lista Z-A"],
+                    ["Anno", "Anno"],
                     ["Popolarità", "Popolarità"],
                     ["Valutazione", "Valutazione"]
                 ].map(x => ({type_name: 'SelectOption', name: x[0], value: x[1] }))
