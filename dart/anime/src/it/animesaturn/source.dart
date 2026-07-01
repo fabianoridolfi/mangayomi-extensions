@@ -6,7 +6,7 @@ const _animesaturnCodeUrl =
     "$rawRepoUrl/$branchName/dart/anime/src/it/animesaturn/animesaturn.dart";
 Source _animesaturn = Source(
   name: "AnimeSaturn",
-  baseUrl: "https://www.animesaturn.cx",
+  baseUrl: "https://www.animesaturn.net/",
   lang: "it",
   typeSource: "single",
   iconUrl: "$rawRepoUrl/$branchName/dart/anime/src/it/animesaturn/icon.png",
