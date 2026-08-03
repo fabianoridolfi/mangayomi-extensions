@@ -12,7 +12,7 @@ class AnimeSaturn extends MProvider {
   Future<MPages> getPopular(int page) async {
     final res =
         (await client.get(
-          Uri.parse("${source.baseUrl}/animeincorso?page=$page"),
+          Uri.parse("${source.baseUrl}/ongoing/$page"),
         )).body;
 
     List<MManga> animeList = [];
@@ -46,7 +46,7 @@ class AnimeSaturn extends MProvider {
   Future<MPages> getLatestUpdates(int page) async {
     final res =
         (await client.get(
-          Uri.parse("${source.baseUrl}/newest?page=$page"),
+          Uri.parse("${source.baseUrl}/newest/$page"),
         )).body;
 
     List<MManga> animeList = [];
@@ -76,7 +76,7 @@ class AnimeSaturn extends MProvider {
     String url = "";
 
     if (query.isNotEmpty) {
-      url = "${source.baseUrl}/animelist?search=$query";
+      url = "${source.baseUrl}/filter?key=$query";
     } else {
       url = "${source.baseUrl}/filter?";
       int variantgenre = 0;
