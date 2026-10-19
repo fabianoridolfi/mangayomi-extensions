@@ -1,13 +1,13 @@
 const mangayomiSources = [{
     "name": "AnimeUnity",
     "lang": "it",
-    "baseUrl": "https://www.animeunity.so",
+    "baseUrl": "https://www.animeunity.to",
     "apiUrl": "",
-    "iconUrl": "https://www.animeunity.so/apple-touch-icon.png",
+    "iconUrl": "https://www.animeunity.to/apple-touch-icon.png",
     "typeSource": "single",
     "isManga": false,
     "itemType": 1,
-    "version": "0.0.3",
+    "version": "0.0.4",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "anime/src/it/animeunity.js"
@@ -24,7 +24,7 @@ class DefaultExtension extends MProvider {
         // Problems with cloudflare
         //
         // let segments = url.split('/').filter(s => s);
-        // return `https://img.animeunity.so/anime/${segments.pop()}`
+        // return `https://img.animeunity.to/anime/${segments.pop()}`
         
         return url;    
     }
