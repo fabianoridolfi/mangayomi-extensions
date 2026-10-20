@@ -7,7 +7,7 @@ const mangayomiSources = [{
     "typeSource": "single",
     "isManga": false,
     "itemType": 1,
-    "version": "0.0.4",
+    "version": "0.0.5",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "anime/src/it/animeunity.js"
@@ -200,35 +200,81 @@ class DefaultExtension extends MProvider {
         return detail;
     }
 
-    // For anime episode video list
+        // For anime episode video list
     async getVideoList(url) {
         const res = await this.client.get(this.source.baseUrl + url);
         const doc = new Document(res.body);
 
         const vixcloudUrl = doc.selectFirst('video-player').attr('embed_url');
-
         const vixcloudRes = await this.client.get(vixcloudUrl);
-        const vixcloudDoc = new Document(vixcloudRes.body);
+        const htmlContent = vixcloudRes.body;
 
+        const idMatch = htmlContent.match(/id:\s*['"]([^'"]+)['"]/);
+        const tokenMatch = htmlContent.match(/['"]token['"]:\s*['"]([^'"]+)['"]/);
+        const expiresMatch = htmlContent.match(/['"]expires['"]:\s*['"]([^'"]+)['"]/);
+        const canPlayFHDMatch = htmlContent.match(/window\.canPlayFHD\s*=\s*(true|false)/);
 
-        const scripts = vixcloudDoc.select('script');
-        let downloadUrl = "";
-
-        for (const script of scripts) {
-            const content = script.text.trim();
-            
-            if (content.includes('window.downloadUrl')) {
-                
-                const match = content.match(/window\.downloadUrl\s*=\s*'(.*?)'/);
-                if (match && match[1]) {
-                    downloadUrl = match[1];
-                    break;
-                }
-            }
+        if (!idMatch || !tokenMatch || !expiresMatch) {
+            throw new Error("Impossibile estrarre id/token/expires dal player");
         }
 
-        const videos = [{"url": downloadUrl, "originalUrl": downloadUrl, "quality": null, "headers": null}];
-        return videos;
+        const id = idMatch[1];
+        const token = tokenMatch[1];
+        const expires = expiresMatch[1];
+        const canPlayFHD = canPlayFHDMatch ? canPlayFHDMatch[1] === 'true' : false;
+
+        const headers = {
+            'referer': vixcloudUrl,
+        };
+
+        const reqUrl = `https://vixcloud.cc/playlist/${id}?token=${token}&expires=${expires}&h=${canPlayFHD ? '1' : '0'}`;
+        const secRes = await this.client.get(reqUrl, headers);
+        const master = secRes.body;
+
+        // Parsing della master playlist
+        const lines = master.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+        const videos = [];
+
+        for (let i = 0; i < lines.length; i++) {
+            if (!lines[i].startsWith('#EXT-X-STREAM-INF')) continue;
+
+            const info = lines[i];
+            const streamUrl = lines[i + 1];
+            if (!streamUrl || streamUrl.startsWith('#')) continue;
+
+            const resMatch = info.match(/RESOLUTION=\d+x(\d+)/);
+            const bwMatch = info.match(/BANDWIDTH=(\d+)/);
+            const height = resMatch ? parseInt(resMatch[1]) : 0;
+            const bandwidth = bwMatch ? parseInt(bwMatch[1]) : 0;
+
+            videos.push({
+                url: streamUrl + "#.m3u8",
+                originalUrl: streamUrl + "#.m3u8",
+                quality: height ? `${height}p` : "Auto",
+                headers: headers,
+                _height: height,
+                _bandwidth: bandwidth,
+            });
+        }
+
+        // Ordina dalla qualità più alta alla più bassa
+        videos.sort((a, b) => b._height - a._height || b._bandwidth - a._bandwidth);
+
+        // Rimuove i campi di servizio
+        const result = videos.map(({ _height, _bandwidth, ...v }) => v);
+
+        // Se il parsing non trova varianti, restituisce la master stessa
+        // (ffmpeg/mpv sanno gestirla e scegliere in automatico)
+        if (result.length === 0) {
+            return [{
+                url: reqUrl + "#.m3u8",
+                originalUrl: reqUrl + "#.m3u8",
+                quality: "Auto",
+                headers: headers,
+            }];
+        }
+
+        return result;
     }
 
     getFilterList() {
