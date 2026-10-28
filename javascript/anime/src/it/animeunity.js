@@ -1,13 +1,13 @@
 const mangayomiSources = [{
     "name": "AnimeUnity",
     "lang": "it",
-    "baseUrl": "https://www.animeunity.to",
+    "baseUrl": "https://www.animeunity.co",
     "apiUrl": "",
-    "iconUrl": "https://www.animeunity.to/apple-touch-icon.png",
+    "iconUrl": "https://www.animeunity.co/apple-touch-icon.png",
     "typeSource": "single",
     "isManga": false,
     "itemType": 1,
-    "version": "0.0.6",
+    "version": "0.0.7",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "anime/src/it/animeunity.js"
