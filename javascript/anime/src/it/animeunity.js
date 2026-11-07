@@ -7,7 +7,7 @@ const mangayomiSources = [{
     "typeSource": "single",
     "isManga": false,
     "itemType": 1,
-    "version": "0.0.7",
+    "version": "0.0.8",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "anime/src/it/animeunity.js"
@@ -205,8 +205,11 @@ class DefaultExtension extends MProvider {
         const res = await this.client.get(this.source.baseUrl + url);
         const doc = new Document(res.body);
 
+        const vixcloudHeaders = {
+            'referer': this.source.baseUrl,
+        };
         const vixcloudUrl = doc.selectFirst('video-player').attr('embed_url');
-        const vixcloudRes = await this.client.get(vixcloudUrl);
+        const vixcloudRes = await this.client.get(vixcloudUrl, vixcloudHeaders);
         const htmlContent = vixcloudRes.body;
 
         const idMatch = htmlContent.match(/id:\s*['"]([^'"]+)['"]/);
