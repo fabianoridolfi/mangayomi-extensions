@@ -7,7 +7,7 @@ const mangayomiSources = [{
     "typeSource": "single",
     "isManga": false,
     "itemType": 1,
-    "version": "0.1.0",
+    "version": "0.1.1",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "anime/src/it/animeunity.js"
@@ -67,16 +67,16 @@ class DefaultExtension extends MProvider {
 
     async getLatestUpdates(page) {
         const res = await this.client.get(
-            this.source.baseUrl + `/?page=${page}`, 
+            this.source.baseUrl + `/api/home/latest-episodes?page=${page}&per_page=20`, 
             {"Accept": "text/html, application/xhtml+xml"}
         );
-        const doc = new Document(res.body);
 
-        const raw = doc.selectFirst('#app').attr('data-page');
-        const data = JSON.parse(raw);
+        const data = JSON.parse(res.body);
+        const currentPage = data.current_page;
+        const lastPage = data.last_page;
 
-        console.log(data);
-        const itemList = data.props.latestEpisodes.data;
+
+        const itemList = data.data;
 
         const list = [];
         for (const item of itemList) {
@@ -88,7 +88,7 @@ class DefaultExtension extends MProvider {
             list.push({ name, imageUrl, link });
         }
 
-        return { "list": list, "hasNextPage": true };
+        return { "list": list, "hasNextPage": currentPage < lastPage };
     }
 
     async getDetail(url) {
@@ -101,6 +101,8 @@ class DefaultExtension extends MProvider {
 
         const raw = doc.selectFirst('#app').attr('data-page');
         const data = JSON.parse(raw);
+
+        console.log(data);
         
         const anime = data.props.anime
 
@@ -118,98 +120,116 @@ class DefaultExtension extends MProvider {
 
         const episodes = data.props.loadedEpisodes.episodes;
         console.log(episodes);
-        detail.episodes = episodes.map(e => ({
-            name: `Ep. ${e.number}`,
-            url: `${url}/${e.videos[0].id}`
-        })).reverse();
+        detail.episodes = episodes.map(e => {
+            const urls = e.videos.map(v => ({
+                language: `${v.language}`,
+                url: `${url}/${v.id}`
+            }));
+
+            return ({
+                name: `Ep. ${e.number}`,
+                url: JSON.stringify(urls)
+            });
+        }).reverse();
 
         return detail;
     }
 
-        // For anime episode video list
-    async getVideoList(url) {
-        const res = await this.client.get(
-            this.source.baseUrl + url,
-            { "Accept": "text/html, application/xhtml+xml" }
+    // For anime episode video list
+    async getVideoList(urls) {
+
+        const ordine = ["jpn", "chn", "kor", "eng", "ita"];
+
+        const items = JSON.parse(urls).sort(
+            (a, b) => ordine.indexOf(a.language) - ordine.indexOf(b.language)
         );
-        const doc = new Document(res.body);
 
-        const raw = doc.selectFirst('#app').attr('data-page');
-        const data = JSON.parse(raw);
-
-        console.log(data);
-
-        const vixcloudHeaders = {
-            'referer': this.source.baseUrl,
-        };
-        const vixcloudUrl = data.props.embedUrl;
-        const vixcloudRes = await this.client.get(vixcloudUrl, vixcloudHeaders);
-        const htmlContent = vixcloudRes.body;
-
-        const idMatch = htmlContent.match(/id:\s*['"]([^'"]+)['"]/);
-        const tokenMatch = htmlContent.match(/['"]token['"]:\s*['"]([^'"]+)['"]/);
-        const expiresMatch = htmlContent.match(/['"]expires['"]:\s*['"]([^'"]+)['"]/);
-        const canPlayFHDMatch = htmlContent.match(/window\.canPlayFHD\s*=\s*(true|false)/);
-        const downloadUrlMatch = htmlContent.match(/window\.downloadUrl\s*=\s*'([^']+)'/);
-
-        const downloadUrl = downloadUrlMatch ? downloadUrlMatch[1] : null;
-
-        if (!idMatch || !tokenMatch || !expiresMatch) {
-            if (downloadUrl) {
-                return [{"url": downloadUrl, "originalUrl": downloadUrl, "quality": null, "headers": null}];
-            }
-
-            throw new Error("Impossibile estrarre id/token/expires dal player");
-        }
-  
-        const id = idMatch[1];
-        const token = tokenMatch[1];
-        const expires = expiresMatch[1];
-        const canPlayFHD = canPlayFHDMatch ? canPlayFHDMatch[1] === 'true' : false;
-
-        const headers = {
-            'referer': vixcloudUrl,
-        };
-
-        const reqUrl = `https://vixcloud.cc/playlist/${id}?token=${token}&expires=${expires}&h=${canPlayFHD ? '1' : '0'}`;
-        const secRes = await this.client.get(reqUrl, headers);
-        const master = secRes.body;
-
-        // Parsing della master playlist
-        const lines = master.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
         const videos = [];
+        for (const item of items) {
+            const url = item.url;
+            const lang = item.language;
+            const res = await this.client.get(
+                this.source.baseUrl + url,
+                { 
+                    "Accept": "text/html, application/xhtml+xml"
+                }
+            );
+            const doc = new Document(res.body);
 
-        for (let i = 0; i < lines.length; i++) {
-            if (!lines[i].startsWith('#EXT-X-STREAM-INF')) continue;
+            const raw = doc.selectFirst('#app').attr('data-page');
+            const data = JSON.parse(raw);
 
-            const info = lines[i];
-            const streamUrl = lines[i + 1];
-            if (!streamUrl || streamUrl.startsWith('#')) continue;
+            const vixcloudHeaders = {
+                'referer': this.source.baseUrl,
+            };
+            const vixcloudUrl = data.props.embedUrl;
+            const vixcloudRes = await this.client.get(vixcloudUrl, vixcloudHeaders);
+            const htmlContent = vixcloudRes.body;
 
-            const resMatch = info.match(/RESOLUTION=\d+x(\d+)/);
-            const bwMatch = info.match(/BANDWIDTH=(\d+)/);
-            const height = resMatch ? parseInt(resMatch[1]) : 0;
-            const bandwidth = bwMatch ? parseInt(bwMatch[1]) : 0;
+            const idMatch = htmlContent.match(/id:\s*['"]([^'"]+)['"]/);
+            const tokenMatch = htmlContent.match(/['"]token['"]:\s*['"]([^'"]+)['"]/);
+            const expiresMatch = htmlContent.match(/['"]expires['"]:\s*['"]([^'"]+)['"]/);
+            const canPlayFHDMatch = htmlContent.match(/window\.canPlayFHD\s*=\s*(true|false)/);
+            const downloadUrlMatch = htmlContent.match(/window\.downloadUrl\s*=\s*'([^']+)'/);
 
-            videos.push({
-                url: streamUrl + "#.m3u8",
-                originalUrl: streamUrl + "#.m3u8",
-                quality: height ? `${height}p` : "Auto",
-                headers: headers,
-                _height: height,
-                _bandwidth: bandwidth,
-            });
+            const downloadUrl = downloadUrlMatch ? downloadUrlMatch[1] : null;
+
+            if (!idMatch || !tokenMatch || !expiresMatch) {
+                if (downloadUrl) {
+                    return [{"url": downloadUrl, "originalUrl": downloadUrl, "quality": null, "headers": null}];
+                }
+
+                throw new Error("Impossibile estrarre id/token/expires dal player");
+            }
+    
+            const id = idMatch[1];
+            const token = tokenMatch[1];
+            const expires = expiresMatch[1];
+            const canPlayFHD = canPlayFHDMatch ? canPlayFHDMatch[1] === 'true' : false;
+
+            const headers = {
+                'referer': vixcloudUrl,
+            };
+
+            const reqUrl = `https://vixcloud.cc/playlist/${id}?token=${token}&expires=${expires}&h=${canPlayFHD ? '1' : '0'}`;
+            const secRes = await this.client.get(reqUrl, headers);
+            const master = secRes.body;
+
+            // Parsing della master playlist
+            const lines = master.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+
+            for (let i = 0; i < lines.length; i++) {
+                if (!lines[i].startsWith('#EXT-X-STREAM-INF')) continue;
+
+                const info = lines[i];
+                const streamUrl = lines[i + 1];
+                if (!streamUrl || streamUrl.startsWith('#')) continue;
+
+                const resMatch = info.match(/RESOLUTION=\d+x(\d+)/);
+                const bwMatch = info.match(/BANDWIDTH=(\d+)/);
+                const height = resMatch ? parseInt(resMatch[1]) : 0;
+                const bandwidth = bwMatch ? parseInt(bwMatch[1]) : 0;
+
+                videos.push({
+                    url: streamUrl + "#.m3u8",
+                    originalUrl: streamUrl + "#.m3u8",
+                    quality: `${lang} - ${height ? `${height}p` : "Auto"}`,
+                    headers: headers,
+                    _height: height,
+                    _bandwidth: bandwidth,
+                });
+            }
         }
 
         // Ordina dalla qualità più alta alla più bassa
         videos.sort((a, b) => b._height - a._height || b._bandwidth - a._bandwidth);
 
-        //Replace best quality with downloadable video
-        if (downloadUrl && videos.length > 0)
-        {
-            videos[0].originalUrl = downloadUrl;
-            videos[0].url = downloadUrl;
-        }
+        // //Replace best quality with downloadable video
+        // if (downloadUrl && videos.length > 0)
+        // {
+        //     videos[0].originalUrl = downloadUrl;
+        //     videos[0].url = downloadUrl;
+        // }
 
         // Rimuove i campi di servizio
         const result = videos.map(({ _height, _bandwidth, ...v }) => v);
