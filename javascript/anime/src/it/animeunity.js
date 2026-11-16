@@ -7,7 +7,7 @@ const mangayomiSources = [{
     "typeSource": "single",
     "isManga": false,
     "itemType": 1,
-    "version": "0.1.1",
+    "version": "0.1.2",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "anime/src/it/animeunity.js"
@@ -101,9 +101,6 @@ class DefaultExtension extends MProvider {
 
         const raw = doc.selectFirst('#app').attr('data-page');
         const data = JSON.parse(raw);
-
-        console.log(data);
-        
         const anime = data.props.anime
 
         const detail = {};
@@ -119,7 +116,6 @@ class DefaultExtension extends MProvider {
         detail.status = this.parseStatus(anime.default_status);
 
         const episodes = data.props.loadedEpisodes.episodes;
-        console.log(episodes);
         detail.episodes = episodes.map(e => {
             const urls = e.videos.map(v => ({
                 language: `${v.language}`,
@@ -138,10 +134,10 @@ class DefaultExtension extends MProvider {
     // For anime episode video list
     async getVideoList(urls) {
 
-        const ordine = ["jpn", "chn", "kor", "eng", "ita"];
+        const langSort = ["jpn", "chn", "kor", "eng", "ita"];
 
         const items = JSON.parse(urls).sort(
-            (a, b) => ordine.indexOf(a.language) - ordine.indexOf(b.language)
+            (a, b) => langSort.indexOf(a.language) - langSort.indexOf(b.language)
         );
 
         const videos = [];
@@ -215,14 +211,24 @@ class DefaultExtension extends MProvider {
                     originalUrl: streamUrl + "#.m3u8",
                     quality: `${lang} - ${height ? `${height}p` : "Auto"}`,
                     headers: headers,
+                    _lang: lang,
                     _height: height,
                     _bandwidth: bandwidth,
                 });
             }
         }
 
+        const langRank  = l => {
+            const i = langSort.indexOf(l);
+            return i === -1 ? langSort.length : i;
+        };
+
         // Ordina dalla qualità più alta alla più bassa
-        videos.sort((a, b) => b._height - a._height || b._bandwidth - a._bandwidth);
+        videos.sort((a, b) =>
+            langRank(a._lang) - langRank(b._lang) ||
+            b._height - a._height ||
+            b._bandwidth - a._bandwidth
+        );
 
         // //Replace best quality with downloadable video
         // if (downloadUrl && videos.length > 0)
@@ -232,7 +238,7 @@ class DefaultExtension extends MProvider {
         // }
 
         // Rimuove i campi di servizio
-        const result = videos.map(({ _height, _bandwidth, ...v }) => v);
+        const result = videos.map(({ _lang, _height, _bandwidth, ...v }) => v);
 
         // Se il parsing non trova varianti, restituisce la master stessa
         // (ffmpeg/mpv sanno gestirla e scegliere in automatico)
