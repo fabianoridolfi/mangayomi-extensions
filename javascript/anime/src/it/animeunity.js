@@ -1,13 +1,13 @@
 const mangayomiSources = [{
     "name": "AnimeUnity",
     "lang": "it",
-    "baseUrl": "https://www.animeunity.co",
+    "baseUrl": "https://animeunity.cx",
     "apiUrl": "",
-    "iconUrl": "https://www.animeunity.co/apple-touch-icon.png",
+    "iconUrl": "https://animeunity.cx/icon/apple-touch-icon.png",
     "typeSource": "single",
     "isManga": false,
     "itemType": 1,
-    "version": "0.0.8",
+    "version": "0.1.0",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "anime/src/it/animeunity.js"
@@ -32,183 +32,117 @@ class DefaultExtension extends MProvider {
     parseStatus(status) {
         return {
             "in corso": 0,
+            "ongoing": 0,
             "terminato": 1,
+            "completed": 1,
             "droppato": 3,
+            "dropped": 3,
             "non rilasciato": 4,
+            "upcoming": 4,
         }[status.toLowerCase()] ?? 5;
     }
 
     async getPopular(page) {
-        const res = await this.client.get(this.source.baseUrl + `/top-anime?page=${page}`);
+        const header = {
+            "Accept": "text/html, application/xhtml+xml"
+        }
+
+        const res = await this.client.get(this.source.baseUrl + `/top-anime?page=${page}`, header);
         const doc = new Document(res.body);
 
-        const animes = JSON.parse(doc.selectFirst('top-anime').attr('animes'))['data'];
+        const raw = doc.selectFirst('#app').attr('data-page');
+        const data = JSON.parse(raw);
+        const animes = data.props.animes.data;
 
         const list = [];
         for (const anime of animes) {
-            const name = anime['title_eng'] ?? anime['title_it'] ?? anime['title'];
-            const imageUrl = this.localImageUrl(anime['imageurl']);
+            const name = anime['title_it'] ?? anime['title_ja'] ?? anime['title'];
+            const imageUrl = this.localImageUrl(anime['images']['poster']);
             const link = `/anime/${anime['id']}-${anime['slug']}`;
             list.push({ name, imageUrl, link });
         }
-        return { "list": list, "hasNextPage": true };
+
+        return { "list": list, "hasNextPage": page < data.props.animes.last_page };
     }
 
     async getLatestUpdates(page) {
-        const res = await this.client.get(this.source.baseUrl + `/?page=${page}`);
+        const res = await this.client.get(
+            this.source.baseUrl + `/?page=${page}`, 
+            {"Accept": "text/html, application/xhtml+xml"}
+        );
         const doc = new Document(res.body);
 
-        const itemList = JSON.parse(doc.selectFirst('layout-items').attr('items-json'))['data'];
+        const raw = doc.selectFirst('#app').attr('data-page');
+        const data = JSON.parse(raw);
+
+        console.log(data);
+        const itemList = data.props.latestEpisodes.data;
 
         const list = [];
         for (const item of itemList) {
-            const anime = item['anime'];
+            const anime = item.episode.anime;
 
-            const name = anime['title_eng'] ?? anime['title_it'] ?? anime['title'];
-            const imageUrl = this.localImageUrl(anime['imageurl']);
-            const link = `/anime/${anime['id']}-${anime['slug']}`;
+            const name = anime.title ?? anime.title_it ?? anime.title_ja;
+            const imageUrl = this.localImageUrl(anime.images.poster);
+            const link = `/anime/${anime.id}-${anime.slug}`;
             list.push({ name, imageUrl, link });
         }
 
         return { "list": list, "hasNextPage": true };
     }
 
-    async search(query, page, filters) {
-        const metaData = await this.client.get(this.source.baseUrl);
-        const docMetaData = new Document(metaData.body);
-
-        const token = docMetaData.selectFirst('meta[name="csrf-token"]').attr('content')
-
-        let genres = [];
-        let year = false;
-        let status = false;
-        let type = false;
-        let season = false;
-        let dubbed = false;
-        let order = false;
-
-        for (const filter of filters) {
-            if (filter.type == "GenresFilter") {
-                 genres = filter.state.filter(f => f.state).map(g => JSON.parse(g.value))
-            }
-            else {
-                const value = (filter.values && filter.values[filter.state ?? 0].value) ?? false;
-                if(value)
-                {
-                    if (filter.type == "YearList") {
-                        year = value;
-                    }
-                    else if (filter.type == "StatusList") {
-                        status = value;
-                    }
-                    else if (filter.type == "TypeList") {
-                        type = value;
-                    }
-                    else if (filter.type == "SeasonList") {
-                        season = value;
-                    }
-                    else if(filter.type == "DubList") {
-                        dubbed = value;
-                    }
-                    else if(filter.type == "OrderList") {
-                        order = value;
-                    }
-                }
-            }
-        }
-
-        let totalAnimes = 0;
-        let retrirevedAnimes = 0;
-        const offset = (Math.max(1, Number(page)) - 1) * 30;
-
-        const headers = {
-            "Content-Type": "application/json", 
-            "X-Csrf-Token": `${token}`, 
-            "X-Requested-With": "XMLHttpRequest"
-        };
-
-        const body = {
-            "title": query,
-            "type":type,
-            "year":year,
-            "order": (order == "Anno") ? "Lista A-Z" : order,
-            "status":status,
-            "genres":genres,
-            "offset":(order == "Anno") ? retrirevedAnimes : offset,
-            "dubbed":dubbed == "OnlyIta",
-            "season":season
-        };
-
-        const list = [];
-        do {
-            const res = await this.client.post(`${this.source.baseUrl}/archivio/get-animes`, headers, body);
-
-            const animes = JSON.parse(res.body)['records'];
-            totalAnimes = JSON.parse(res.body)['tot'];
-            retrirevedAnimes += animes.length
-
-            for (const anime of animes) {
-                const name = anime['title_eng'] ?? anime['title_it'] ?? anime['title'];
-                const year = anime['date'];
-                const imageUrl = this.localImageUrl(anime['imageurl']);
-                const link = `/anime/${anime['id']}-${anime['slug']}`;
-
-                if(dubbed != "NoIta" || !name.includes(" (ITA)")) {
-                    list.push({ name, year, imageUrl, link });
-                }
-            }
-            
-            // for next loop
-            body.offset = retrirevedAnimes;
-        } while(order == "Anno" && retrirevedAnimes < totalAnimes && list.length < 120 );
-
-        let hasNextPage = offset + retrirevedAnimes < totalAnimes;
-        if(order == "Anno") { 
-            list.sort((a, b) => Number(a.year) - Number(b.year));
-            hasNextPage = false
-        }
-
-        return { "list": list, "hasNextPage": hasNextPage };
-    }
-
     async getDetail(url) {
-        const res = await this.client.get(this.source.baseUrl + url);
+        const header = {
+            "Accept": "text/html, application/xhtml+xml"
+        }
+
+        const res = await this.client.get(this.source.baseUrl + url, header);
         const doc = new Document(res.body);
+
+        const raw = doc.selectFirst('#app').attr('data-page');
+        const data = JSON.parse(raw);
+        
+        const anime = data.props.anime
+
         const detail = {};
 
         detail.link = url;
-        detail.imageUrl = doc.selectFirst('div.cover-wrap > img').attr('src');
+        detail.imageUrl = anime.images.poster;
 
-        detail.name = doc.selectFirst('h1.title').text.trim();
-        detail.description = doc.selectFirst('div.description').text.trim();
-        detail.genre = doc.select('a.genre-link').map(g => g.text.trim().replaceAll(",", ""));
-        
-        const info = doc.selectFirst('div.info-wrapper.anime-info-wrapper');
-        {
-            const infoKeys = info.select('div.info-item > strong').map(k => k.text.trim());
-            const infoValues = info.select('div.info-item > small').map(v => v.text.trim());
+        detail.name = anime.title ?? anime.title_it ?? anime.title_ja;
+        detail.description = anime.plot;
 
-            detail.status = this.parseStatus(infoValues[3]);
-            detail.author = `${infoValues[6]}`
-        }
+        detail.genre = anime.genres.map(g => g.name);
+        detail.author = anime.studios.map(s => s.name).join(", ")
+        detail.status = this.parseStatus(anime.default_status);
 
-        const episodes = JSON.parse(doc.selectFirst('video-player').attr('episodes'));
+        const episodes = data.props.loadedEpisodes.episodes;
+        console.log(episodes);
         detail.episodes = episodes.map(e => ({
-             name: `Ep. ${e.number}`,
-             url: `${url}/${e.id}`
+            name: `Ep. ${e.number}`,
+            url: `${url}/${e.videos[0].id}`
         })).reverse();
+
         return detail;
     }
 
         // For anime episode video list
     async getVideoList(url) {
-        const res = await this.client.get(this.source.baseUrl + url);
+        const res = await this.client.get(
+            this.source.baseUrl + url,
+            { "Accept": "text/html, application/xhtml+xml" }
+        );
         const doc = new Document(res.body);
+
+        const raw = doc.selectFirst('#app').attr('data-page');
+        const data = JSON.parse(raw);
+
+        console.log(data);
 
         const vixcloudHeaders = {
             'referer': this.source.baseUrl,
         };
-        const vixcloudUrl = doc.selectFirst('video-player').attr('embed_url');
+        const vixcloudUrl = data.props.embedUrl;
         const vixcloudRes = await this.client.get(vixcloudUrl, vixcloudHeaders);
         const htmlContent = vixcloudRes.body;
 
@@ -294,68 +228,209 @@ class DefaultExtension extends MProvider {
         return result;
     }
 
+    async search(query, page, filters) {
+        const metaData = await this.client.get(this.source.baseUrl);
+        const docMetaData = new Document(metaData.body);
+        const token = docMetaData.selectFirst('meta[name="csrf-token"]').attr('content')
+
+        const params = []
+
+        if(query)
+        {
+            params.push(`query=${query}`);
+        }
+
+        for (const filter of filters) {
+            if (filter.type == "GenresFilter") {
+                const genresIncluded = filter.state.filter(e => e.state === 1).map(g => JSON.parse(g.value));
+                params.push(genresIncluded.map(g => `genres[]=${g.id}`).join("&"));
+
+                const genresExcluded = filter.state.filter(e => e.state === 2).map(g => JSON.parse(g.value));
+                params.push(genresExcluded.map(g => `genres_exclude[]=${g.id}`).join("&"));
+            }
+            else if (filter.type == "TypeList") {
+                params.push(`type=${filter.values[filter.state].value}`);
+            }
+            else if (filter.type == "StatusList") {
+                params.push(`status=${filter.values[filter.state].value}`);
+            }
+            else if (filter.type == "SeasonList") {
+                params.push(`season=${filter.values[filter.state].value}`);
+            }
+            else if (filter.type == "AudioList") {
+                params.push(`language=${filter.values[filter.state].value}`);
+            }
+            else if (filter.type == "CountryList") {
+                params.push(`country=${filter.values[filter.state].value}`);
+            }
+            else if (filter.type == "YearList") {
+                params.push(`year_from=${filter.values[filter.state].value}&year_to=${filter.values[filter.state].value}`);
+            }
+            else if (filter.type == "OrderList") {
+                params.push(`sort_by=${filter.values[filter.state].value}`);
+            }
+        }
+
+        const headers = {
+            "Content-Type": "application/json", 
+            "X-Csrf-Token": `${token}`, 
+            "X-Requested-With": "XMLHttpRequest"
+        };
+
+        const searchParam = params.length > 0 ? `?${params.join('&')}&page=${page}` : "";
+        const searchUrl = this.source.baseUrl + `/archive${searchParam}`;
+
+        const res = await this.client.get(searchUrl, headers);
+        const doc = new Document(res.body);
+
+        const raw = doc.selectFirst('#app').attr('data-page');
+        const data = JSON.parse(raw);
+       
+        const currentPage = data.props.animes.current_page;
+        const lastPage = data.props.animes.last_page;
+
+        const list = [];
+        for (const anime of data.props.animes.data) {
+            const name = anime.title;
+            const imageUrl = anime.images.poster;
+            const description = anime.plot;
+            const link = `/anime/${anime.id}-${anime.slug}`;
+
+            list.push({ 
+                name, 
+                imageUrl,
+                description,
+                link
+            });
+        }
+
+        return { "list": list, "hasNextPage": currentPage < lastPage};
+    }
+
     getFilterList() {
         const yearsRange = (min, max) => Array.from({ length: max - min + 1 }, (_, i) => max - i).map(x => [x, x]);
         return [
-            {
-                type_name: "HeaderFilter",
-                type: "info",
-                name: "INFO: l'ordinamento per anno è gestito lato client. " +
-                      "La funzionalità è limitata a un set ridotto di dati per prevenire problemi nell'usabilità dell'applicazione.",                      
-                state: 0
-            },
             {
                 type_name: "GroupFilter",
                 type: "GenresFilter",
                 name: "Generi",
                 state: [
-                    ["Action", {"id": 51, "name": "Action"}],
-                    ["Adventure",	{"id": 21, "name": "Adventure"}],
-                    ["Avant Garde",	{"id": 43, "name": "Avant Garde"}],
-                    ["Boys Love",	{"id": 59, "name": "Boys Love"}],
-                    ["Comedy", {"id": 37, "name": "Comedy"}],
-                    ["Demons", {"id": 13, "name": "Demons"}],
-                    ["Drama", {"id": 22, "name": "Drama"}],
-                    ["Ecchi", {"id": 5, "name": "Ecchi"}],
+                    ["Action", {"id": 1, "name": "Action"}],
+                    ["Adventure", {"id": 2, "name": "Adventure"}],
+                    ["Avant Garde", {"id": 3, "name": "Avant Garde"}],
+                    ["Boys Love", {"id": 4, "name": "Boys Love"}],
+                    ["Comedy", {"id": 5, "name": "Comedy"}],
+                    ["Demons", {"id": 6, "name": "Demons"}],
+                    ["Drama", {"id": 7, "name": "Drama"}],
+                    ["Ecchi", {"id": 8, "name": "Ecchi"}],
                     ["Fantasy", {"id": 9, "name": "Fantasy"}],
-                    ["Game", {"id": 44, "name": "Game"}],
-                    ["Girls Love", {"id": 58, "name": "Girls Love"}],
-                    ["Gore", {"id": 52, "name": "Gore"}],
-                    ["Gourmet", {"id": 56, "name": "Gourmet"}],
-                    ["Harem", {"id": 15, "name": "Harem"}],
-                    ["Hentai", {"id": 4, "name": "Hentai"}],
-                    ["Historical", {"id": 30, "name": "Historical"}],
-                    ["Horror", {"id": 3, "name": "Horror"}],
-                    ["Isekai", {"id": 53, "name": "Isekai"}],
-                    ["Josei", {"id": 45, "name": "Josei"}],
-                    ["Kids", {"id": 14, "name": "Kids"}],
-                    ["Mahou Shoujo", {"id": 57, "name": "Mahou Shoujo"}],
-                    ["Martial Arts", {"id": 31, "name": "Martial Arts"}],
-                    ["Mecha", {"id": 38, "name": "Mecha"}],
-                    ["Military", {"id": 46, "name": "Military"}],
-                    ["Music", {"id": 16, "name": "Music"}],
-                    ["Mystery", {"id": 24, "name": "Mystery"}],
-                    ["Parody", {"id": 32, "name": "Parody"}],
-                    ["Police", {"id": 39, "name": "Police"}],
-                    ["Psychological", {"id": 47, "name": "Psychological"}],
-                    ["Racing", {"id": 29, "name": "Racing"}],
-                    ["Reincarnation", {"id": 54, "name": "Reincarnation"}],
-                    ["Romance", {"id": 17, "name": "Romance"}],
-                    ["Samurai", {"id": 25, "name": "Samurai"}],
-                    ["School", {"id": 33, "name": "School"}],
-                    ["Sci-fi", {"id": 40, "name": "Sci-fi"}],
-                    ["Seinen", {"id": 49, "name": "Seinen"}],
-                    ["Shoujo", {"id": 18, "name": "Shoujo"}],
-                    ["Shounen", {"id": 34, "name": "Shounen"}],
-                    ["Slice of Life", {"id": 50, "name": "Slice of Life"}],
-                    ["Space", {"id": 19, "name": "Space"}],
-                    ["Sports", {"id": 27, "name": "Sports"}],
-                    ["Super Power", {"id": 35, "name": "Super Power"}],
-                    ["Supernatural", {"id": 42, "name": "Supernatural"}],
-                    ["Survival", {"id": 55, "name": "Survival"}],
-                    ["Thriller", {"id": 48, "name": "Thriller"}],
-                    ["Vampire", {"id": 20, "name": "Vampire"}]
-                ].map(x => ({ type_name: 'CheckBox', name: x[0], value: JSON.stringify(x[1]) }))
+                    ["Game", {"id": 10, "name": "Game"}],
+                    ["Girls Love", {"id": 11, "name": "Girls Love"}],
+                    ["Gore", {"id": 12, "name": "Gore"}],
+                    ["Gourmet", {"id": 13, "name": "Gourmet"}],
+                    ["Harem", {"id": 14, "name": "Harem"}],
+                    ["Hentai", {"id": 15, "name": "Hentai"}],
+                    ["Historical", {"id": 16, "name": "Historical"}],
+                    ["Horror", {"id": 17, "name": "Horror"}],
+                    ["Isekai", {"id": 18, "name": "Isekai"}],
+                    ["Josei", {"id": 19, "name": "Josei"}],
+                    ["Kids", {"id": 20, "name": "Kids"}],
+                    ["Mahou Shoujo", {"id": 21, "name": "Mahou Shoujo"}],
+                    ["Martial Arts", {"id": 22, "name": "Martial Arts"}],
+                    ["Mecha", {"id": 23, "name": "Mecha"}],
+                    ["Military", {"id": 24, "name": "Military"}],
+                    ["Music", {"id": 25, "name": "Music"}],
+                    ["Mystery", {"id": 26, "name": "Mystery"}],
+                    ["Parody", {"id": 27, "name": "Parody"}],
+                    ["Police", {"id": 28, "name": "Police"}],
+                    ["Psychological", {"id": 29, "name": "Psychological"}],
+                    ["Racing", {"id": 30, "name": "Racing"}],
+                    ["Reincarnation", {"id": 31, "name": "Reincarnation"}],
+                    ["Romance", {"id": 32, "name": "Romance"}],
+                    ["Samurai", {"id": 33, "name": "Samurai"}],
+                    ["School", {"id": 34, "name": "School"}],
+                    ["Sci-fi", {"id": 35, "name": "Sci-fi"}],
+                    ["Seinen", {"id": 36, "name": "Seinen"}],
+                    ["Shoujo", {"id": 37, "name": "Shoujo"}],
+                    ["Shounen", {"id": 38, "name": "Shounen"}],
+                    ["Slice of Life", {"id": 39, "name": "Slice of Life"}],
+                    ["Space", {"id": 40, "name": "Space"}],
+                    ["Sports", {"id": 41, "name": "Sports"}],
+                    ["Super Power", {"id": 42, "name": "Super Power"}],
+                    ["Supernatural", {"id": 43, "name": "Supernatural"}],
+                    ["Survival", {"id": 44, "name": "Survival"}],
+                    ["Thriller", {"id": 45, "name": "Thriller"}],
+                    ["Vampire", {"id": 46, "name": "Vampire"}]
+                ].map(x => ({ type_name: 'TriState', name: x[0], value: JSON.stringify(x[1]) }))
+            },
+            {
+                type_name: "SelectFilter",
+                type: "TypeList",
+                name: "Tipo",
+                state: 0,
+                values: [
+                    ["Any", ""],
+                    ["TV", "tv"],
+                    ["TV Short", "tv_short"],
+                    ["OVA", "ova"],
+                    ["ONA", "ona"],
+                    ["Special", "special"],
+                    ["Movie", "movie"]
+                ].map(x => ({type_name: 'SelectOption', name: x[0], value: x[1] }))
+            },
+            {
+                type_name: "SelectFilter",
+                type: "StatusList",
+                name: "Stato",
+                state: 0,
+                values: [
+                    ["Any", ""],
+                    ["In Corso", "ongoing"],
+                    ["Terminato", "completed"],
+                    ["In Uscita", "upcoming"],
+                    ["Droppato", "dropped"]
+                ].map(x => ({type_name: 'SelectOption', name: x[0], value: x[1] }))
+            },
+            {
+                type_name: "SelectFilter",
+                type: "SeasonList",
+                name: "Stagione",
+                state: 0,
+                values: [
+                    ["Any", ""],
+                    ["Inverno", "winter"],
+                    ["Primavera", "spring"],
+                    ["Estate", "summer"],
+                    ["Autunno", "fall"]
+                ].map(x => ({type_name: 'SelectOption', name: x[0], value: x[1] }))
+            },
+            {
+                type_name: "SelectFilter",
+                type: "AudioList",
+                name: "Audio",
+                state: 2,
+                values: [
+                    ["Any", ""],
+                    ["Italiano", "ita"],
+                    ["Giapponese", "jpn"],
+                    ["Cinese", "chn"],
+                    ["Coreano", "kor"],
+                    ["Inglese", "eng"]
+                ].map(x => ({type_name: 'SelectOption', name: x[0], value: x[1] }))
+            },
+            {
+                type_name: "SelectFilter",
+                type: "CountryList",
+                name: "Paese",
+                state: 1,
+                values: [
+                    ["Any", ""],
+                    ["Giappone", "JP"],
+                    ["Cina", "CN"],
+                    ["Corea Sud", "KR"],
+                    ["Taiwan", "TW"],
+                    ["US", "US"]
+                ].map(x => ({type_name: 'SelectOption', name: x[0], value: x[1] }))
             },
             {
                 type_name: "SelectFilter",
@@ -368,58 +443,6 @@ class DefaultExtension extends MProvider {
                 ].map(x => ({ type_name: 'SelectOption', name: `${x[0]}`, value: `${x[1]}` }))
             },
             {
-                type_name: "SelectFilter",
-                type: "StatusList",
-                name: "Stato",
-                state: 0,
-                values: [
-                    ["Any", ""],
-                    ["In Corso", "In Corso"],
-                    ["Terminato", "Terminato"],
-                    ["In Uscita", "In Uscita"],
-                    ["Droppato", "Droppato"]
-                ].map(x => ({type_name: 'SelectOption', name: x[0], value: x[1] }))
-            },
-            {
-                type_name: "SelectFilter",
-                type: "TypeList",
-                name: "Tipo",
-                state: 0,
-                values: [
-                    ["Any", ""],
-                    ["TV", "TV"],
-                    ["TV Short", "TV Short"],
-                    ["OVA", "OVA"],
-                    ["ONA", "ONA"],
-                    ["Special", "Special"],
-                    ["Movie", "Movie"]
-                ].map(x => ({type_name: 'SelectOption', name: x[0], value: x[1] }))
-            },
-            {
-                type_name: "SelectFilter",
-                type: "SeasonList",
-                name: "Stagione",
-                state: 0,
-                values: [
-                    ["Any", ""],
-                    ["Inverno", "Inverno"],
-                    ["Primavera", "Primavera"],
-                    ["Estate", "Estate"],
-                    ["Autunno", "Autunno"]
-                ].map(x => ({type_name: 'SelectOption', name: x[0], value: x[1] }))
-            },
-            {
-                type_name: "SelectFilter",
-                type: "DubList",
-                name: "Doppiaggio",
-                state: 1,
-                values: [
-                    ["Any", ""],
-                    ["Escludi doppiati", "NoIta"],
-                    ["Solo doppiati", "OnlyIta"]
-                ].map(x => ({type_name: 'SelectOption', name: x[0], value: x[1] }))
-            },
-            {
                 type: "separator",
                 type_name: "SeparatorFilter",
             },
@@ -429,12 +452,14 @@ class DefaultExtension extends MProvider {
                 name: "Ordinamento",
                 state: 0,
                 values: [
-                    ["Any", ""],
-                    ["Lista A-Z", "Lista A-Z"],
-                    ["Lista Z-A", "Lista Z-A"],
-                    ["Anno", "Anno"],
-                    ["Popolarità", "Popolarità"],
-                    ["Valutazione", "Valutazione"]
+                    ["Lista A-Z", "title_az"],
+                    ["Lista Z-A", "title_za"],
+                    ["Più Recenti", "latest"],
+                    ["Meno Recenti", "latest_asc"],
+                    ["Popolarità", "members"],
+                    ["Valutazione", "score"],
+                    ["Visualizzazioni", "views"]
+                    
                 ].map(x => ({type_name: 'SelectOption', name: x[0], value: x[1] }))
             }
         ];
