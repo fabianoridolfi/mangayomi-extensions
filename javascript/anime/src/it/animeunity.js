@@ -7,7 +7,7 @@ const mangayomiSources = [{
     "typeSource": "single",
     "isManga": false,
     "itemType": 1,
-    "version": "0.1.2",
+    "version": "0.1.3",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "anime/src/it/animeunity.js"
@@ -56,7 +56,7 @@ class DefaultExtension extends MProvider {
 
         const list = [];
         for (const anime of animes) {
-            const name = anime['title_it'] ?? anime['title_ja'] ?? anime['title'];
+            const name = anime.title ?? anime.title_it ?? anime.title_ja;
             const imageUrl = this.localImageUrl(anime['images']['poster']);
             const link = `/anime/${anime['id']}-${anime['slug']}`;
             list.push({ name, imageUrl, link });
@@ -317,7 +317,7 @@ class DefaultExtension extends MProvider {
 
         const list = [];
         for (const anime of data.props.animes.data) {
-            const name = anime.title;
+            const name = anime.title ?? anime.title_it ?? anime.title_ja;
             const imageUrl = anime.images.poster;
             const description = anime.plot;
             const link = `/anime/${anime.id}-${anime.slug}`;
