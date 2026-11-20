@@ -7,7 +7,7 @@ const mangayomiSources = [{
     "typeSource": "single",
     "isManga": false,
     "itemType": 1,
-    "version": "0.1.3",
+    "version": "0.1.4",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "anime/src/it/animeunity.js"
@@ -92,11 +92,11 @@ class DefaultExtension extends MProvider {
     }
 
     async getDetail(url) {
-        const header = {
-            "Accept": "text/html, application/xhtml+xml"
-        }
+        const res = await this.client.get(
+            this.source.baseUrl + url, 
+            { "Accept": "text/html, application/xhtml+xml"}
+        );
 
-        const res = await this.client.get(this.source.baseUrl + url, header);
         const doc = new Document(res.body);
 
         const raw = doc.selectFirst('#app').attr('data-page');
@@ -115,19 +115,36 @@ class DefaultExtension extends MProvider {
         detail.author = anime.studios.map(s => s.name).join(", ")
         detail.status = this.parseStatus(anime.default_status);
 
-        const episodes = data.props.loadedEpisodes.episodes;
-        detail.episodes = episodes.map(e => {
-            const urls = e.videos.map(v => ({
-                language: `${v.language}`,
-                url: `${url}/${v.id}`
-            }));
+        const episodes = [];
+        do{
+            const res = await this.client.get(
+                this.source.baseUrl + `/api/anime/${anime.id}/episodes?start=${episodes.length}`, 
+                { "Accept": "application/json, text/plain, */*"}
+            );
 
-            return ({
-                name: `Ep. ${e.number}`,
-                url: JSON.stringify(urls)
-            });
-        }).reverse();
+            const loadedEpisodes = JSON.parse(res.body);
 
+            const currentEpisodes = loadedEpisodes.episodes.map(e => {
+                const urls = e.videos.map(v => ({
+                    language: `${v.language}`,
+                    url: `${url}/${v.id}`
+                }));
+
+                return ({
+                    name: `Ep. ${e.number}`,
+                    url: JSON.stringify(urls)
+                });
+            })
+
+            episodes.push(...currentEpisodes);
+
+            if(currentEpisodes.length <= 0 || loadedEpisodes.total <= episodes.length){
+                break;
+            }
+        }
+        while(true);
+
+        detail.episodes = episodes.reverse();
         return detail;
     }
 
